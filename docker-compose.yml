@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+  # database for storing data
+  database:
+    container_name: "${APP_PREFIX}-db"
+    image: mongo:7.0
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=passpass
+    networks:
+      - app-network
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data/db
+      - data:/data/db
+
+  # Secondary mongo database container for managing data
+  dbsh:
+    container_name: "${APP_PREFIX}-dbsh"
+    depends_on:
+      - database
+    environment:
+      - MONGO_HOST=database
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=passpass
+    image: mongo:7.0
+    networks:
+      - app-network
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data/db
+
+  # server for handling requests
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: "${APP_PREFIX}-server"
+    env_file:
+      - .env
+    networks:
+      - app-network
+    ports:
+      - "8080:8080"
+      - "3000:3000"
+    volumes:
+      - ./server:/usr/src/app
+      - ./app:/usr/src/web
+      - /usr/src/app/node_modules
+
+  # node service for React app
+  app:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    container_name: "${APP_PREFIX}-app"
+    env_file:
+      - .env
+    depends_on:
+      - database
+      - server
+    networks:
+      - app-network
+    volumes:
+      - ./src:/usr/src/web
+      - /usr/src/web/node_modules
+
+# network for communication between containers
+networks:
+  app-network:
+    driver: bridge
+
+# volumes for persisting data
+volumes:
+    data:
